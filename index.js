@@ -8,6 +8,7 @@ const bufSecret = Buffer(sharedSecret, "base64");
 
 var request = require("request");
 var http = require('http');
+var fs = require('fs');
 var PORT = process.env.port || process.env.PORT || 8080;
 
 const sendPayload = function(){
@@ -76,42 +77,47 @@ const sendPayload = function(){
 	
 }
 
-
-http.createServer(function(req, response) { 
-	var payload = '';
-	// Process the req
-	req.on('data', function (data) {
-		payload += data;
-	});
-	
-	// Respond to the req
-	req.on('end', function() {
-		sendPayload();
-		try {
-			// Retrieve authorization HMAC information
-			var auth = this.headers['authorization'];
-			// Calculate HMAC on the message we've received using the shared secret			
-			var msgBuf = Buffer.from(payload, 'utf8');
-			var msgHash = "HMAC " + crypto.createHmac('sha256', bufSecret).update(msgBuf).digest("base64");
-			// console.log("Computed HMAC: " + msgHash);
-			// console.log("Received HMAC: " + auth);
-			
-			response.writeHead(200);
-			if (msgHash === auth) {
-				var receivedMsg = JSON.parse(payload);
-				var responseMsg = '{ "type": "message", "text": "You typed: ' + receivedMsg.text + '" }';	
-			} else {
-				var responseMsg = '{ "type": "message", "text": "Error: message sender cannot be authenticated." }';
-			}
-			response.write(responseMsg);
-			response.end();
-		}
-		catch (err) {
-			response.writeHead(400);
-			return response.end("Error: " + err + "\n" + err.stack);
-		}
-	});
+fs.readFile('./index.html', function (err, html) {
+    if (err) {
+        throw err; 
+    }       
+    http.createServer(function(req, response) { 
+		var payload = '';
+		// Process the req
+		req.on('data', function (data) {
+			payload += data;
+		});
 		
-}).listen(PORT);
+		// Respond to the req
+		req.on('end', function() {
+			sendPayload();
+			try {
+				// Retrieve authorization HMAC information
+				var auth = this.headers['authorization'];
+				// Calculate HMAC on the message we've received using the shared secret			
+				var msgBuf = Buffer.from(payload, 'utf8');
+				var msgHash = "HMAC " + crypto.createHmac('sha256', bufSecret).update(msgBuf).digest("base64");
+				// console.log("Computed HMAC: " + msgHash);
+				// console.log("Received HMAC: " + auth);
+				
+				response.writeHead(200);
+				if (msgHash === auth) {
+					var receivedMsg = JSON.parse(payload);
+					var responseMsg = '{ "type": "message", "text": "You typed: ' + receivedMsg.text + '" }';	
+				} else {
+					var responseMsg = '{ "type": "message", "text": "Error: message sender cannot be authenticated." }';
+				}
+				console.log(responseMsg);
+				return response.write(html);
+			}
+			catch (err) {
+				return response.write(html);
+				// response.writeHead(400);
+				// return response.end("Error: " + err + "\n" + err.stack);
+			}
+		});
+			
+	}).listen(PORT);
+});
 
 console.log('Listening on port %s', PORT);
